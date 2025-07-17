@@ -3,6 +3,7 @@ import sys
 
 import pygame
 from pygame.locals import K_ESCAPE, K_SPACE, K_UP, KEYDOWN, QUIT
+from ai.nn import NN
 
 from .entities import (
     Background,
@@ -85,6 +86,8 @@ class Flappy:
     async def play(self):
         self.score.reset()
         self.player.set_mode(PlayerMode.NORMAL)
+        model = NN()
+        next_pipe = None
 
         while True:
             if self.player.collided(self.pipes, self.floor):
@@ -93,12 +96,33 @@ class Flappy:
             for i, pipe in enumerate(self.pipes.upper):
                 if self.player.crossed(pipe):
                     self.score.add()
-
-            for event in pygame.event.get():
-                self.check_quit_event(event)
-                if self.is_tap_event(event):
+            
+            self.background.tick()
+            self.floor.tick()
+            self.pipes.tick()
+            self.score.tick()
+            self.player.tick()
+            
+            next_pipe = None
+            # Setup state contents
+            for pipe in self.pipes.upper:
+                if pipe.x + pipe.w > self.player.x:
+                    next_pipe = pipe
+                    break
+            if next_pipe:
+                pipe_x = next_pipe.x
+                pipe_top_y = next_pipe.y + next_pipe.h
+                pipe_gap = self.pipes.pipe_gap
+                pipe_bottom_y = pipe_top_y + pipe_gap
+                state = [self.player.y, self.player.vel_y, pipe_x - self.player.x, pipe_top_y, pipe_bottom_y]
+                output = model.forward(state)
+                if output > 0.5:
                     self.player.flap()
 
+            # Skipped since we are now using AI to control
+            # for event in pygame.event.get():
+            #     self.check_quit_event(event)
+                
             self.background.tick()
             self.floor.tick()
             self.pipes.tick()
