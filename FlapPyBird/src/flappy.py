@@ -82,7 +82,6 @@ class Flappy:
         )
         screen_tap = event.type == pygame.FINGERDOWN
         return m_left or space_or_up or screen_tap
-
     async def play(self):
         self.score.reset()
         self.player.set_mode(PlayerMode.NORMAL)
@@ -103,6 +102,19 @@ class Flappy:
             self.score.tick()
             self.player.tick()
             
+            def normalize_values(player, pipe_x, pipe_top_y, pipe_bottom_y, window):
+                # For vertical position
+                norm_y = player.y / window.height
+                # For vertical velocity (assumes NORMAL mode settings)
+                vel_range = player.max_vel_y - player.min_vel_y
+                norm_vel = (player.vel_y - player.min_vel_y) / vel_range if vel_range != 0 else 0.5
+                # Horizontal distance to pipe
+                pipe_dx = (pipe_x - player.x) / window.width
+                # Pipe gap positions
+                norm_pipe_top = pipe_top_y / window.height
+                norm_pipe_bottom = pipe_bottom_y / window.height
+                return [norm_y, norm_vel, pipe_dx, norm_pipe_top, norm_pipe_bottom]    
+
             next_pipe = None
             # Setup state contents
             for pipe in self.pipes.upper:
@@ -114,7 +126,7 @@ class Flappy:
                 pipe_top_y = next_pipe.y + next_pipe.h
                 pipe_gap = self.pipes.pipe_gap
                 pipe_bottom_y = pipe_top_y + pipe_gap
-                state = [self.player.y, self.player.vel_y, pipe_x - self.player.x, pipe_top_y, pipe_bottom_y]
+                state = normalize_values(self.player, pipe_x, pipe_top_y, pipe_bottom_y, self.config.window)
                 output = model.forward(state)
                 if output > 0.5:
                     self.player.flap()

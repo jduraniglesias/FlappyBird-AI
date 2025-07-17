@@ -6,13 +6,14 @@ def relu(x):
 
 # Returns probabilty of if bird should flap or not (if > .5 = flap)
 def sigmoid(x):
+    x = np.clip(x, -500, 500)
     return 1 / (1 + np.exp(-x))
 
 class NN:
     def __init__(self, input_size=5, hidden_size=6):
-        self.w1 = np.random.randn(input_size, hidden_size)
+        self.w1 = np.random.randn(input_size, hidden_size) * 0.1
         self.b1 = np.zeros((1, hidden_size))
-        self.w2 = np.random.randn(hidden_size, 1)
+        self.w2 = np.random.randn(hidden_size, 1) * 0.1
         self.b2 = np.zeros((1,1))
 
     # AI decision maker
