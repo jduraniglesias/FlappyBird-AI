@@ -3,7 +3,7 @@ import sys
 
 import pygame
 from pygame.locals import K_ESCAPE, K_SPACE, K_UP, KEYDOWN, QUIT
-from ai.nn import NN
+from FlapPyBird.ai.nn import NN
 
 from .entities import (
     Background,
