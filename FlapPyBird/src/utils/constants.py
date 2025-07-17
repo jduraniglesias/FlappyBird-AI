@@ -1,33 +1,18 @@
-# list of all possible players (tuple of 3 positions of flap)
-PLAYERS = (
-    # red bird
-    (
-        "assets/sprites/redbird-upflap.png",
-        "assets/sprites/redbird-midflap.png",
-        "assets/sprites/redbird-downflap.png",
-    ),
-    # blue bird
-    (
-        "assets/sprites/bluebird-upflap.png",
-        "assets/sprites/bluebird-midflap.png",
-        "assets/sprites/bluebird-downflap.png",
-    ),
-    # yellow bird
-    (
-        "assets/sprites/yellowbird-upflap.png",
-        "assets/sprites/yellowbird-midflap.png",
-        "assets/sprites/yellowbird-downflap.png",
-    ),
-)
-
 # list of backgrounds
-BACKGROUNDS = (
-    "assets/sprites/background-day.png",
-    "assets/sprites/background-night.png",
-)
+BACKGROUNDS = [
+    "background-day.png",
+    "background-night.png",
+]
+
+# list of all possible players (tuple of 3 positions of flap)
+PLAYERS = [
+    ["redbird-upflap.png", "redbird-midflap.png", "redbird-downflap.png"],
+    ["bluebird-upflap.png", "bluebird-midflap.png", "bluebird-downflap.png"],
+    ["yellowbird-upflap.png", "yellowbird-midflap.png", "yellowbird-downflap.png"],
+]
 
 # list of pipes
-PIPES = (
-    "assets/sprites/pipe-green.png",
-    "assets/sprites/pipe-red.png",
-)
+PIPES = [
+    "pipe-green.png",
+    "pipe-red.png",
+]
