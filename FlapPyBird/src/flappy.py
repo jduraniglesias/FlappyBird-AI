@@ -87,6 +87,7 @@ class Flappy:
         self.player.set_mode(PlayerMode.NORMAL)
         model = NN()
         next_pipe = None
+        frames_survived = 0
 
         while True:
             if self.player.collided(self.pipes, self.floor):
@@ -134,13 +135,9 @@ class Flappy:
             # Skipped since we are now using AI to control
             # for event in pygame.event.get():
             #     self.check_quit_event(event)
-                
-            self.background.tick()
-            self.floor.tick()
-            self.pipes.tick()
-            self.score.tick()
-            self.player.tick()
-
+            frames_survived += 1
+            model.fitness = frames_survived + self.score.score * 100
+            model.debugFitness()
             pygame.display.update()
             await asyncio.sleep(0)
             self.config.tick()

@@ -15,6 +15,7 @@ class NN:
         self.b1 = np.zeros((1, hidden_size))
         self.w2 = np.random.randn(hidden_size, 1) * 0.1
         self.b2 = np.zeros((1,1))
+        self.fitness = 0
 
     # AI decision maker
     # Step 1: Takes input x (state vector)
@@ -27,3 +28,6 @@ class NN:
         h = relu(np.dot(x, self.w1) + self.b1)
         out = sigmoid(np.dot(h, self.w2) + self.b2)
         return out[0][0]
+    
+    def debugFitness(self):
+        print(self.fitness)
