@@ -4,6 +4,7 @@ import sys
 import pygame
 from pygame.locals import K_ESCAPE, K_SPACE, K_UP, KEYDOWN, QUIT
 from FlapPyBird.ai.nn import NN
+from FlapPyBird.ai.aibird import AIBird
 
 from .entities import (
     Background,
@@ -82,62 +83,72 @@ class Flappy:
         )
         screen_tap = event.type == pygame.FINGERDOWN
         return m_left or space_or_up or screen_tap
+    # Todo:
+    # So the issue is that the bird thats sideways is not ticking/drawing correctly
+    # The sideways bird should fly straight up fast but instead it just falls slowly while making the fly noise
+    # The other issue is that sometimes the bird will go straight but in reality should be falling (no fly noise made)
+
     async def play(self):
-        self.score.reset()
-        self.player.set_mode(PlayerMode.NORMAL)
-        model = NN()
         next_pipe = None
-        frames_survived = 0
+        population_size = 3
+        birds = [AIBird(self.config) for _ in range(population_size)]
 
-        while True:
-            if self.player.collided(self.pipes, self.floor):
-                return
+        def normalize_values(player, pipe_x, pipe_top_y, pipe_bottom_y, window):
+            # For vertical position
+            norm_y = player.y / window.height
+            # For vertical velocity (assumes NORMAL mode settings)
+            vel_range = player.max_vel_y - player.min_vel_y
+            norm_vel = (player.vel_y - player.min_vel_y) / vel_range if vel_range != 0 else 0.5
+            # Horizontal distance to pipe
+            pipe_dx = (pipe_x - player.x) / window.width
+            # Pipe gap positions
+            norm_pipe_top = pipe_top_y / window.height
+            norm_pipe_bottom = pipe_bottom_y / window.height
+            return [norm_y, norm_vel, pipe_dx, norm_pipe_top, norm_pipe_bottom]    
 
-            for i, pipe in enumerate(self.pipes.upper):
-                if self.player.crossed(pipe):
-                    self.score.add()
-            
+        for bird in birds:
+            bird.score.reset()
+            bird.frames_survived = 0
+            bird.alive = True
+
+        while any(bird.alive for bird in birds):
             self.background.tick()
             self.floor.tick()
             self.pipes.tick()
-            self.score.tick()
-            self.player.tick()
+            for bird in birds:
+                if not bird.alive:
+                    continue
+                next_pipe = None
+                # Setup state contents
+                for pipe in self.pipes.upper:
+                    if pipe.x + pipe.w > bird.player.x:
+                        next_pipe = pipe
+                        break
+                if next_pipe:
+                    pipe_x = next_pipe.x
+                    pipe_top_y = next_pipe.y + next_pipe.h
+                    pipe_gap = self.pipes.pipe_gap
+                    pipe_bottom_y = pipe_top_y + pipe_gap
+                    state = normalize_values(bird.player, pipe_x, pipe_top_y, pipe_bottom_y, self.config.window)
+                    output = bird.model.forward(state)
+                    if output > 0.5:
+                        bird.player.flap()
+                
+                bird.player.tick()
+                bird.score.tick()
+                bird.frames_survived += 1
+
+                for i, pipe in enumerate(self.pipes.upper):
+                    if bird.player.crossed(pipe):
+                        bird.score.add()
+
+                if bird.player.collided(self.pipes, self.floor):
+                    bird.alive = False
+                    bird.fitness = bird.frames_survived + bird.score.score * 100
             
-            def normalize_values(player, pipe_x, pipe_top_y, pipe_bottom_y, window):
-                # For vertical position
-                norm_y = player.y / window.height
-                # For vertical velocity (assumes NORMAL mode settings)
-                vel_range = player.max_vel_y - player.min_vel_y
-                norm_vel = (player.vel_y - player.min_vel_y) / vel_range if vel_range != 0 else 0.5
-                # Horizontal distance to pipe
-                pipe_dx = (pipe_x - player.x) / window.width
-                # Pipe gap positions
-                norm_pipe_top = pipe_top_y / window.height
-                norm_pipe_bottom = pipe_bottom_y / window.height
-                return [norm_y, norm_vel, pipe_dx, norm_pipe_top, norm_pipe_bottom]    
-
-            next_pipe = None
-            # Setup state contents
-            for pipe in self.pipes.upper:
-                if pipe.x + pipe.w > self.player.x:
-                    next_pipe = pipe
-                    break
-            if next_pipe:
-                pipe_x = next_pipe.x
-                pipe_top_y = next_pipe.y + next_pipe.h
-                pipe_gap = self.pipes.pipe_gap
-                pipe_bottom_y = pipe_top_y + pipe_gap
-                state = normalize_values(self.player, pipe_x, pipe_top_y, pipe_bottom_y, self.config.window)
-                output = model.forward(state)
-                if output > 0.5:
-                    self.player.flap()
-
-            # Skipped since we are now using AI to control
-            # for event in pygame.event.get():
-            #     self.check_quit_event(event)
-            frames_survived += 1
-            model.fitness = frames_survived + self.score.score * 100
-            model.debugFitness()
+            for bird in birds:
+                if bird.alive:
+                    bird.player.draw()
             pygame.display.update()
             await asyncio.sleep(0)
             self.config.tick()
