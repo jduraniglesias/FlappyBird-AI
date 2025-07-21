@@ -119,6 +119,7 @@ class Flappy:
                 if not bird.alive:
                     continue
                 next_pipe = None
+
                 # Setup state contents
                 for pipe in self.pipes.upper:
                     if pipe.x + pipe.w > bird.player.x:
@@ -133,22 +134,17 @@ class Flappy:
                     output = bird.model.forward(state)
                     if output > 0.5:
                         bird.player.flap()
-                
                 bird.player.tick()
                 bird.score.tick()
                 bird.frames_survived += 1
-
                 for i, pipe in enumerate(self.pipes.upper):
                     if bird.player.crossed(pipe):
-                        bird.score.add()
+                        bird.score.add() 
 
                 if bird.player.collided(self.pipes, self.floor):
                     bird.alive = False
                     bird.fitness = bird.frames_survived + bird.score.score * 100
-            
-            for bird in birds:
-                if bird.alive:
-                    bird.player.draw()
+                 
             pygame.display.update()
             await asyncio.sleep(0)
             self.config.tick()
