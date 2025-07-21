@@ -5,6 +5,7 @@ import pygame
 from pygame.locals import K_ESCAPE, K_SPACE, K_UP, KEYDOWN, QUIT
 from FlapPyBird.ai.nn import NN
 from FlapPyBird.ai.aibird import AIBird
+from FlapPyBird.ai.evolution import evolve_population
 
 from .entities import (
     Background,
@@ -37,17 +38,26 @@ class Flappy:
         )
 
     async def start(self):
+        population_size = 50
+        population = [AIBird(self.config) for _ in range(population_size)]
+        gen = 0
         while True:
+            gen += 1
+            print(f"=== Generation {gen} ===")
+
+            # re-initialize the environment
             self.background = Background(self.config)
-            self.floor = Floor(self.config)
-            self.player = Player(self.config)
-            self.welcome_message = WelcomeMessage(self.config)
-            self.game_over_message = GameOver(self.config)
-            self.pipes = Pipes(self.config)
-            self.score = Score(self.config)
-            await self.splash()
-            await self.play()
-            await self.game_over()
+            self.floor      = Floor(self.config)
+            self.pipes      = Pipes(self.config)
+
+            # run one batch of birds
+            await self.play(population)
+
+            # evolve
+            population = evolve_population(population)
+
+            best = max(population, key=lambda b: b.fitness)
+            print(f"Gen {gen} best fitness = {best.fitness}")
 
     async def splash(self):
         """Shows welcome splash screen animation of flappy bird"""
@@ -88,11 +98,7 @@ class Flappy:
     # The sideways bird should fly straight up fast but instead it just falls slowly while making the fly noise
     # The other issue is that sometimes the bird will go straight but in reality should be falling (no fly noise made)
 
-    async def play(self):
-        next_pipe = None
-        population_size = 3
-        birds = [AIBird(self.config) for _ in range(population_size)]
-
+    async def play(self, birds: list[AIBird]):
         def normalize_values(player, pipe_x, pipe_top_y, pipe_bottom_y, window):
             # For vertical position
             norm_y = player.y / window.height

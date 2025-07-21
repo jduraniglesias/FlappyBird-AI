@@ -6,17 +6,13 @@ from FlapPyBird.src.entities.player import PlayerMode
 class AIBird:
     def __init__(self, config):
         self.player = Player(config)
+        self.score  = Score(config)
         self.model  = NN()
-        self.fitness = 0
         self.frames_survived = 0
         self.alive = True
-
+        self.fitness = 0
     @classmethod
-    def from_model(cls, model: NN, config):
-        """Create a new AIBird using the given NN, resetting all runtime state."""
+    def from_model(cls, model, config):
         bird = cls(config)
         bird.model = model
-        bird.fitness = 0
-        bird.frames_survived = 0
-        bird.alive = True
         return bird

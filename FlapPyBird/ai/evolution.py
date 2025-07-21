@@ -27,7 +27,7 @@ def evolve_population(birds, retain_frac=0.2, random_frac=0.05):
     parents = birds[:retain_len]
     for bird in birds[retain_len:]:
         if np.random.rand() < random_frac:
-            parents.append(b)
+            parents.append(bird)
     
     children = []
     desired = len(birds) - len(parents)
@@ -36,3 +36,5 @@ def evolve_population(birds, retain_frac=0.2, random_frac=0.05):
         child_net = crossover(pa.model, pb.model)
         mutate(child_net)
         child = AIBird.from_model(child_net)
+        children.append(child)
+    return parents + children
