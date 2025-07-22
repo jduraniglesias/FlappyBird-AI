@@ -47,15 +47,19 @@ class Flappy:
 
             # re-initialize the environment
             self.background = Background(self.config)
-            self.floor      = Floor(self.config)
-            self.pipes      = Pipes(self.config)
-
+            self.floor = Floor(self.config)
+            self.pipes = Pipes(self.config)
+            
             # run one batch of birds
             await self.play(population)
 
             # evolve
+            elite = sorted(population, key=lambda b: b.fitness, reverse=True)[:int(len(population) * 0.2)]
+            elite_fitnesses = [b.fitness for b in elite]
+            print(f"Top birds before evolution: {elite_fitnesses}")
             population = evolve_population(population, self.config)
-
+            new_elite_fitnesses = [b.fitness for b in population[:len(elite)]]
+            print(f"Top birds after evolution:  {new_elite_fitnesses}")
             best = max(population, key=lambda b: b.fitness)
             print(f"Gen {gen} best fitness = {best.fitness}")
 
@@ -110,50 +114,86 @@ class Flappy:
             # Pipe gap positions
             norm_pipe_top = pipe_top_y / window.height
             norm_pipe_bottom = pipe_bottom_y / window.height
-            return [norm_y, norm_vel, pipe_dx, norm_pipe_top, norm_pipe_bottom]    
+            return [norm_y, norm_vel, pipe_dx, norm_pipe_top, norm_pipe_bottom]
 
+        # --- initialize per-bird stats ---
         for bird in birds:
             bird.score.reset()
             bird.frames_survived = 0
             bird.alive = True
 
+            # new stats for punishment
+            bird.flap_count = 0
+            bird.penalty = 0.0
+            bird.hover_frames = 0
+
         while any(bird.alive for bird in birds):
             self.background.tick()
             self.floor.tick()
             self.pipes.tick()
+
             for bird in birds:
                 if not bird.alive:
                     continue
-                next_pipe = None
 
-                # Setup state contents
+                # find the next pipe
+                next_pipe = None
                 for pipe in self.pipes.upper:
                     if pipe.x + pipe.w > bird.player.x:
                         next_pipe = pipe
                         break
+
+                # make decision
                 if next_pipe:
                     pipe_x = next_pipe.x
                     pipe_top_y = next_pipe.y + next_pipe.h
                     pipe_gap = self.pipes.pipe_gap
                     pipe_bottom_y = pipe_top_y + pipe_gap
-                    state = normalize_values(bird.player, pipe_x, pipe_top_y, pipe_bottom_y, self.config.window)
+
+                    state = normalize_values(
+                        bird.player, pipe_x, pipe_top_y, pipe_bottom_y, self.config.window
+                    )
                     output = bird.model.forward(state)
                     if output > 0.5:
                         bird.player.flap()
+                        bird.flap_count += 1
+
+                # tick physics & scoring
                 bird.player.tick()
                 bird.score.tick()
                 bird.frames_survived += 1
+
+                # --- apply per-frame punishment ---
+                # 1) Too high: into top 10% of screen
+                if bird.player.y < 0.1 * self.config.window.height:
+                    bird.penalty += 1.0
+
+                # 2) Hovering: very small velocity for many frames
+                if abs(bird.player.vel_y) < 1.0:
+                    bird.hover_frames += 1
+                    # penalize after 30 consecutive hover frames
+                    if bird.hover_frames > 30:
+                        bird.penalty += 0.5
+                else:
+                    bird.hover_frames = 0
+
+                # count pipe passes
                 for i, pipe in enumerate(self.pipes.upper):
                     if bird.player.crossed(pipe):
-                        bird.score.add() 
+                        bird.score.add()
 
+                # collision check
                 if bird.player.collided(self.pipes, self.floor):
                     bird.alive = False
-                    bird.fitness = bird.frames_survived + bird.score.score * 100
+                    # compute final fitness with penalties
+                    base_fitness = bird.frames_survived + bird.score.score * 100
+                    flap_penalty = bird.flap_count * 0.2
+                    bird.fitness = base_fitness - bird.penalty - flap_penalty
                  
             pygame.display.update()
             await asyncio.sleep(0)
             self.config.tick()
+
 
     async def game_over(self):
         """crashes the player down and shows gameover image"""

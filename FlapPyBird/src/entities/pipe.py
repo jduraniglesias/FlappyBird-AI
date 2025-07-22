@@ -21,7 +21,15 @@ class Pipes(Entity):
 
     def __init__(self, config: GameConfig) -> None:
         super().__init__(config)
+
+        # -- difficulty parameters --
         self.pipe_gap = 120
+        self.initial_pipe_gap = self.pipe_gap        # remember the start size
+        self.min_pipe_gap = 60                       # never go below this
+        self.gap_decrement = 1                       # pixels to remove per spawn
+        self.spawned_pipes = 0                       # counter
+
+        # -- rest of your original init --
         self.top = 0
         self.bottom = self.config.window.viewport_height
         self.upper = []
@@ -49,18 +57,25 @@ class Pipes(Entity):
         return self.config.window.width - (last.x + last.w) > last.w * 2.5
 
     def spawn_new_pipes(self):
-        # add new pipe when first pipe is about to touch left of screen
+        # bump the counter
+        self.spawned_pipes += 1
+
+        # shrink the gap a bit, but never below min_pipe_gap
+        new_gap = self.initial_pipe_gap - self.spawned_pipes * self.gap_decrement
+        self.pipe_gap = max(self.min_pipe_gap, int(new_gap))
+
+        # now spawn with the updated gap
         upper, lower = self.make_random_pipes()
         self.upper.append(upper)
         self.lower.append(lower)
 
     def remove_old_pipes(self):
         # remove first pipe if its out of the screen
-        for pipe in self.upper:
+        for pipe in list(self.upper):
             if pipe.x < -pipe.w:
                 self.upper.remove(pipe)
 
-        for pipe in self.lower:
+        for pipe in list(self.lower):
             if pipe.x < -pipe.w:
                 self.lower.remove(pipe)
 
@@ -78,8 +93,7 @@ class Pipes(Entity):
         self.lower.append(lower_2)
 
     def make_random_pipes(self):
-        """returns a randomly generated pipe"""
-        # y of gap between upper and lower pipe
+        """returns a randomly generated pipe using current self.pipe_gap"""
         base_y = self.config.window.viewport_height
 
         gap_y = random.randrange(0, int(base_y * 0.6 - self.pipe_gap))
