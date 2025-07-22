@@ -54,7 +54,7 @@ class Flappy:
             await self.play(population)
 
             # evolve
-            population = evolve_population(population)
+            population = evolve_population(population, self.config)
 
             best = max(population, key=lambda b: b.fitness)
             print(f"Gen {gen} best fitness = {best.fitness}")

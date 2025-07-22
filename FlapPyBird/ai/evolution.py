@@ -3,6 +3,7 @@ from copy import deepcopy
 from .nn import NN
 from .aibird import AIBird
 
+
 def crossover(parent_a: NN, parent_b: NN) -> NN:
     child = NN()
     for attr in ('w1', 'b1', 'w2', 'b2'):
@@ -21,7 +22,7 @@ def mutate(net: NN, rate=0.1, scale=0.5)->NN:
         setattr(net, attr, mat)
     return net
 
-def evolve_population(birds, retain_frac=0.2, random_frac=0.05):
+def evolve_population(birds: list[AIBird], config, retain_frac=0.2, random_frac=0.05) -> list[AIBird]:
     birds.sort(key=lambda b: b.fitness, reverse=True)
     retain_len = int(len(birds) * retain_frac)
     parents = birds[:retain_len]
@@ -35,6 +36,6 @@ def evolve_population(birds, retain_frac=0.2, random_frac=0.05):
         pa, pb = np.random.choice(parents, 2, replace=False)
         child_net = crossover(pa.model, pb.model)
         mutate(child_net)
-        child = AIBird.from_model(child_net)
+        child = AIBird.from_model(child_net, config)
         children.append(child)
     return parents + children
