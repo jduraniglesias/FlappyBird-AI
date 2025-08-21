@@ -1,11 +1,13 @@
 import asyncio
 import sys
-
+import numpy as np
 import pygame
+import contextlib
 from pygame.locals import K_ESCAPE, K_SPACE, K_UP, KEYDOWN, QUIT
 from FlapPyBird.ai.nn import NN
 from FlapPyBird.ai.aibird import AIBird
 from FlapPyBird.ai.evolution import evolve_population
+import os
 
 from .entities import (
     Background,
@@ -27,7 +29,13 @@ class Flappy:
         window = Window(288, 512)
         screen = pygame.display.set_mode((window.width, window.height))
         images = Images()
-
+        self.ckpt_dir = "checkpoints"
+        os.makedirs(self.ckpt_dir, exist_ok=True)
+        self.best_ever_fitness = float("-inf")
+        self.best_ever_gen = 0
+        self.champion_path = os.path.join(self.ckpt_dir, "champion.npz")
+        self._should_quit = False
+        self._quit_task = None
         self.config = GameConfig(
             screen=screen,
             clock=pygame.time.Clock(),
@@ -37,31 +45,97 @@ class Flappy:
             sounds=Sounds(),
         )
 
-    async def start(self):
-        population_size = 50
-        population = [AIBird(self.config) for _ in range(population_size)]
-        gen = 0
-        while True:
-            gen += 1
-            print(f"=== Generation {gen} ===")
+    async def _stdin_quit_watcher(self):
+        loop = asyncio.get_running_loop()
+        try:
+            while True:
+                line = await loop.run_in_executor(None, sys.stdin.readline)
+                if not line:
+                    continue
+                if line.strip().lower() == "quit":
+                    print("Quitting…")
+                    self._should_quit = True
+                    break
+        except Exception as e:
+            print(f"quit watcher stopped: {e}")
 
-            # re-initialize the environment
-            self.background = Background(self.config)
-            self.floor = Floor(self.config)
-            self.pipes = Pipes(self.config)
-            
-            # run one batch of birds
-            await self.play(population)
+    async def _stop_quit_watcher(self):
+        if self._quit_task and not self._quit_task.done():
+            self._quit_task.cancel()
+            with contextlib.suppress(asyncio.CancelledError):
+                await self._quit_task
 
-            # evolve
-            elite = sorted(population, key=lambda b: b.fitness, reverse=True)[:int(len(population) * 0.2)]
-            elite_fitnesses = [b.fitness for b in elite]
-            print(f"Top birds before evolution: {elite_fitnesses}")
-            population = evolve_population(population, self.config)
-            new_elite_fitnesses = [b.fitness for b in population[:len(elite)]]
-            print(f"Top birds after evolution:  {new_elite_fitnesses}")
-            best = max(population, key=lambda b: b.fitness)
-            print(f"Gen {gen} best fitness = {best.fitness}")
+    async def replay_champion(self, path: str | None = None):
+        path = path or self.champion_path
+        if not os.path.exists(path):
+            print("No champion checkpoint found, train first")
+            return
+
+        data = np.load(path, allow_pickle=False)
+        meta_gen = int(data["meta_gen"]) if "meta_gen" in data.files else 0
+        meta_fit = float(data["meta_fitness"]) if "meta_fitness" in data.files else 0.0
+
+        net = NN()
+        net.w1, net.b1 = data["w1"], data["b1"]
+        net.w2, net.b2 = data["w2"], data["b2"]
+
+        self.background = Background(self.config)
+        self.floor = Floor(self.config)
+        self.pipes = Pipes(self.config)
+
+        champ = AIBird.from_model(net, self.config)
+        champ.alive = True
+        champ.score.reset()
+
+        print(f"Replaying champion (gen {meta_gen}, fitness {meta_fit})")
+        await self.play([champ])
+
+
+    async def start(self, mode="train"):
+        self._should_quit = False
+        self._quit_task = asyncio.create_task(self._stdin_quit_watcher())
+        try:
+            if mode == "replay":
+                print("Replay Mode")
+                await self.replay_champion()
+                return
+
+            population_size = 100
+            population = [AIBird(self.config) for _ in range(population_size)]
+            gen = 0
+            while not self._should_quit:
+                gen += 1
+                print(f"=== Generation {gen} ===")
+
+                self.background = Background(self.config)
+                self.floor = Floor(self.config)
+                self.pipes = Pipes(self.config)
+
+                await self.play(population)
+                if self._should_quit:
+                    break
+
+                elite = sorted(population, key=lambda b: b.fitness, reverse=True)[:int(len(population) * 0.2)]
+                print(f"Top birds before evolution: {[b.fitness for b in elite]}")
+                population = evolve_population(population, self.config)
+                print(f"Top birds after evolution:  {[b.fitness for b in population[:len(elite)]]}")
+                best = max(population, key=lambda b: b.fitness)
+                print(f"Gen {gen} best fitness = {best.fitness}")
+                if best.fitness > self.best_ever_fitness:
+                    self.best_ever_fitness = best.fitness
+                    self.best_ever_gen = gen
+                    np.savez(
+                        self.champion_path,
+                        w1=best.model.w1, b1=best.model.b1,
+                        w2=best.model.w2, b2=best.model.b2,
+                        meta_gen=np.array(gen, dtype=np.int32),
+                        meta_fitness=np.array(best.fitness, dtype=np.float32),
+                    )
+                    print(f"Saved champion from gen {gen} @ fitness {best.fitness} -> {self.champion_path}")
+        finally:
+            await self._stop_quit_watcher()
+            pygame.quit()
+            sys.exit()
 
     async def splash(self):
         """Shows welcome splash screen animation of flappy bird"""
@@ -122,12 +196,17 @@ class Flappy:
             bird.frames_survived = 0
             bird.alive = True
 
-            # new stats for punishment
+            # keep game window alive
+            for event in pygame.event.get():
+                self.check_quit_event(event)
+            # new stats for penalty
             bird.flap_count = 0
             bird.penalty = 0.0
             bird.hover_frames = 0
 
         while any(bird.alive for bird in birds):
+            if self._should_quit:
+                return
             self.background.tick()
             self.floor.tick()
             self.pipes.tick()

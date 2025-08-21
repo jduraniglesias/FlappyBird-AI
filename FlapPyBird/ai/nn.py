@@ -17,6 +17,16 @@ class NN:
         self.b2 = np.zeros((1,1))
         self.fitness = 0
 
+    def save(self, path: str):
+        np.savez(path, w1=self.w1, b1=self.b1, w2=self.w2, b2=self.b2)
+
+    def load(path: str) -> "NN":
+        data = np.load(path, allow_pickle=False)
+        net = NN()
+        net.w1 = data["w1"]; net.b1 = data["b1"]
+        net.w2 = data["w2"]; net.b2 = data["b2"]
+        return net
+    
     # AI decision maker
     # Step 1: Takes input x (state vector)
     # Step 2: np.dot(x, self.w1) + self.b1 is input -> hidden layer
