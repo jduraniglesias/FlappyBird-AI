@@ -66,29 +66,36 @@ class Flappy:
                 await self._quit_task
 
     async def replay_champion(self, path: str | None = None):
-        path = path or self.champion_path
-        if not os.path.exists(path):
-            print("No champion checkpoint found, train first")
-            return
+        # start quit watcher for replay mode
+        self._should_quit = False
+        self._quit_task = asyncio.create_task(self._stdin_quit_watcher())
+        try:
+            path = path or self.champion_path
+            if not os.path.exists(path):
+                print("No champion checkpoint found, train first")
+                return
 
-        data = np.load(path, allow_pickle=False)
-        meta_gen = int(data["meta_gen"]) if "meta_gen" in data.files else 0
-        meta_fit = float(data["meta_fitness"]) if "meta_fitness" in data.files else 0.0
+            data = np.load(path, allow_pickle=False)
+            meta_gen = int(data["meta_gen"]) if "meta_gen" in data.files else 0
+            meta_fit = float(data["meta_fitness"]) if "meta_fitness" in data.files else 0.0
 
-        net = NN()
-        net.w1, net.b1 = data["w1"], data["b1"]
-        net.w2, net.b2 = data["w2"], data["b2"]
+            net = NN()
+            net.w1, net.b1 = data["w1"], data["b1"]
+            net.w2, net.b2 = data["w2"], data["b2"]
 
-        self.background = Background(self.config)
-        self.floor = Floor(self.config)
-        self.pipes = Pipes(self.config)
+            self.background = Background(self.config)
+            self.floor = Floor(self.config)
+            self.pipes = Pipes(self.config)
 
-        champ = AIBird.from_model(net, self.config)
-        champ.alive = True
-        champ.score.reset()
+            champ = AIBird.from_model(net, self.config)
+            champ.alive = True
+            champ.score.reset()
 
-        print(f"Replaying champion (gen {meta_gen}, fitness {meta_fit})")
-        await self.play([champ])
+            print(f"Replaying champion (gen {meta_gen}, fitness {meta_fit})")
+            await self.play([champ])  # play() should check _should_quit each loop
+        finally:
+            await self._stop_quit_watcher()
+
 
 
     async def start(self, mode="train"):

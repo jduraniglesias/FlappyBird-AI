@@ -2,7 +2,7 @@
 import pygame
 import numpy as np
 
-from .entities import Background, Floor, Pipes, Player, Score
+from .entities import Background, Floor, Pipes, Player, Score, PlayerMode
 from .utils import GameConfig
 
 class FlappyEnv:
@@ -50,6 +50,7 @@ class FlappyEnv:
         self.pipes = Pipes(self.config)
         self.player = Player(self.config)
         self.score = Score(self.config)
+        self.player.set_mode(PlayerMode.NORMAL)
         self.frames = 0
         self.flap_count = 0
 

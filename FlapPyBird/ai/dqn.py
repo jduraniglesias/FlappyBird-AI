@@ -104,7 +104,7 @@ class DQNAgent:
         
         # else pick action with highest q value
         # dont use gradient
-        with torch.nograd():
+        with torch.no_grad():
             s = torch.tensor(state, dtype=torch.float32, device=self.device).unsqueeze(0)
             q_values = self.q(s)
             action = int(torch.argmax(q_values, dim=1).item())
